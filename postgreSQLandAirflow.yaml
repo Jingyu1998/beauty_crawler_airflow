@@ -1,0 +1,87 @@
+version: "3.7"
+
+x-airflow-common:
+  &airflow-common
+  image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.6.3}
+  environment:
+    &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://badguy:yourpassword@yourip:port/db_name
+    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: 10
+  volumes:
+    - /home/docker-data/airflow-data/dags:/opt/airflow/dags
+    - /home/docker-data/airflow-data/logs:/opt/airflow/logs
+    - /home/docker-data/airflow-data/plugins:/opt/airflow/plugins
+    - /home/happy_pic:/home/happy_pic
+  user: "${AIRFLOW_UID:-50000}:${AIRFLOW_GID:-50000}"
+  depends_on:
+    - "db"
+
+services:
+  db:
+    image: postgres:16beta2
+    restart: always
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: badguy
+      POSTGRES_PASSWORD: yourpassword
+      PGDATA: /var/lib/postgresql/data
+    volumes:
+      - /home/docker-data/db-data:/var/lib/postgresql/data
+      - /etc/localtime:/etc/localtime:ro
+    command: postgres -c log_timezone='Asia/Taipei' -c timezone='Asia/Taipei'
+    ports:
+      - "5432:5432"
+    
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: badguy@gmail.com
+      PGADMIN_DEFAULT_PASSWORD: yourpassword
+      PGADMIN_LISTEN_PORT: 80
+    ports:
+      - "9527:80"
+    volumes:
+      - /home/docker-data/pgadmin-data:/var/lib/pgadmin
+    links:
+      - "db:pgsql-server"
+    depends_on:
+      - "db"
+
+  postgres_exporter:
+    image: bitnami/postgres-exporter:0.13.1
+    restart: always
+    ports:
+      - "9187:9187"
+    environment:
+      - DATA_SOURCE_NAME=postgresql://badguy:yourpassword@yourip:port/db_name?sslmode=disable
+    depends_on:
+      - "db"
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - 6969:8080
+    restart: always
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    restart: always
+
+  airflow-init:
+    <<: *airflow-common
+    command: version
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_UPGRADE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
+      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
+
