@@ -18,7 +18,7 @@ default_args = {
 
 with DAG(
     default_args=default_args,
-    dag_id='our_dag_with_python_operator_v07',
+    dag_id='my_scheduler_to_download_happy_pic',
     description='Our first dag using python operator',
     start_date=datetime(2023, 7, 17),
     schedule='@daily'
@@ -31,5 +31,8 @@ with DAG(
         task_id='delete_yesterday_image_folder',
         bash_command='rm -rf /home/happy_pic/Beauty_PttImg_{:{}}'.format(yesterday, datetime_format)
     )
-
-    task2 >> task1 
+    task3 = BashOperator(               
+        task_id='delete_announce_image_folder',
+        bash_command='find /home/happy_pic/Beauty_PttImg_20230719 -type d -name "*檢舉建議專區*" -exec rm -rf {} +'
+    )
+    task2 >> task1 >> task3
